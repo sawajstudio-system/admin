@@ -17,13 +17,13 @@ jobs:
       TELEGRAM_API_REPORT_TOKEN: ${{ secrets.TELEGRAM_API_REPORT_TOKEN }}
       TELEGRAM_API_REPORT_CHAT_ID: ${{ secrets.TELEGRAM_API_REPORT_CHAT_ID }}
       TOKEN_GITHUB: ${{ secrets.TOKEN_GITHUB }}
-      
+
       # ── ☁️ GOOGLE DRIVE ──
       GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
       GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
       GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
       GDRIVE_F_STORY_ID: ${{ secrets.GDRIVE_F_STORY_ID }}
-      
+
       # ── 🧠 AI MODELS ──
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
@@ -35,7 +35,7 @@ jobs:
       MAGICHOUR_API_KEY: ${{ secrets.MAGICHOUR_API_KEY }}
       ANGES_API_KEY: ${{ secrets.ANGES_API_KEY }}
       TANVO_API_KEY: ${{ secrets.TANVO_API_KEY }}
-      
+
       # ── 🎬 MEDIA & AUDIO ──
       PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
       PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
@@ -64,37 +64,36 @@ jobs:
       - name: 4. 📥 Install Python Packages
         run: |
           python -m pip install --upgrade pip
-          pip install -r Factory/branch/story/requirements.txt
+          pip install -r Story/requirements.txt
 
       - name: 5. 🔍 Verify Structure
         run: |
           echo "📂 Story files:"
-          ls -la Factory/branch/story/
+          ls -la Story/
           echo ""
           echo "📂 Assets:"
-          ls Factory/Management/assets/
+          ls -la Assets/
 
-      # 🟢 STEP 6: Yahan hum Story ko connect kar rahe hain
       - name: 6. 🎬 Run Story Pipeline
-        working-directory: Factory/branch/story
+        working-directory: Story
         env:
-          PYTHONPATH: "${{ github.workspace }}/Factory/branch/story:${{ github.workspace }}/Factory/Management/2_AI_Models:${{ github.workspace }}/Factory/Management/3_Media:${{ github.workspace }}/Factory/Management/4_Islamic:${{ github.workspace }}/Factory/Management/5_Audio_Text:${{ github.workspace }}/Factory/Management/Uploader"
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/Story:${{ github.workspace }}/API:${{ github.workspace }}/URL:${{ github.workspace }}/Config:${{ github.workspace }}/Uploader"
         run: |
-          echo "🚀 Connecting Story Pipeline..."
-          python -u main.py
+          echo "🚀 Starting Story Pipeline..."
+          python -u composer.py
 
       - name: 7. 📤 Check Output
         if: always()
         run: |
-          VIDEO="Factory/branch/story/temp/Final_Story.mp4"
+          VIDEO="Story/final_render.mp4"
           if [ -f "$VIDEO" ]; then
             echo "✅ VIDEO BANA!"
             du -h "$VIDEO"
           else
             echo "❌ Video nahi bana"
-            ls -la Factory/branch/story/temp/ 2>/dev/null || echo "temp nahi mila"
+            ls -la Story/ 2>/dev/null || true
           fi
 
       - name: 8. 🧹 Cleanup
         if: always()
-        run: rm -rf Factory/branch/story/temp 2>/dev/null || true
+        run: rm -f Story/raw_video.mp4 Story/temp_audio.mp3 Story/final_render.mp4 Story/final_thumbnail.jpg 2>/dev/null || true
