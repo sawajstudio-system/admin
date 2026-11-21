@@ -63,688 +63,248 @@ jobs:
       - name: 3. 🏗️ Build Full Structure & Files
         run: |
           python3 <<'PYEOF'
-import os, re, json, shutil
-from pathlib import Path
-
-ROOT = Path.cwd()
-def log(m, e="•"): print(f"{e} {m}")
-
-# ═══════════════════════════════════════════════════════════
-# A. FOLDERS
-# ═══════════════════════════════════════════════════════════
-FOLDERS = [
-    "API/AI_Models","API/Video_Sources","API/Music_Sources",
-    "API/Photo_Sources","API/Islamic_Content","API/Audio_Text",
-    "URL/Media","URL/Islamic","URL/TTS_Translation","URL/Text_Content",
-    "Assets",
-    "Config/App_Configs","Config/Language_Settings",
-    "Config/Style_Settings","Config/Template_Settings",
-    "Uploader",
-    "Story/Pipeline_Orchestration","Story/Content","Story/Audio",
-    "Story/Video","Story/Subtitles_Text","Story/Thumbnails",
-    "Story/Final_Render","Story/Upload","Story/Runtime_Logs",
-]
-for f in FOLDERS:
-    (ROOT/f).mkdir(parents=True, exist_ok=True)
-log(f"{len(FOLDERS)} folders created", "📁")
-
-# ── __init__.py everywhere ──
-PACKAGES = [f for f in FOLDERS if not f.endswith("Runtime_Logs")] + ["API","URL","Config","Story"]
-for p in PACKAGES:
-    init = ROOT/p/"__init__.py"
-    if not init.exists(): init.write_text("")
-log(f"{len(PACKAGES)} __init__.py created", "🐍")
-
-# ═══════════════════════════════════════════════════════════
-# B. COPY FILES FROM FACTORY (Factory safe)
-# ═══════════════════════════════════════════════════════════
-COPY = {
-    # AI Models
-    "Factory/Management/2_AI_Models/ai_fallback.py":"API/AI_Models/ai_fallback.py",
-    "Factory/Management/2_AI_Models/gemini.py":"API/AI_Models/gemini.py",
-    "Factory/Management/2_AI_Models/openrouter.py":"API/AI_Models/openrouter.py",
-    "Factory/Management/2_AI_Models/groq.py":"API/AI_Models/groq.py",
-    "Factory/Management/2_AI_Models/cohere.py":"API/AI_Models/cohere.py",
-    "Factory/Management/2_AI_Models/nvidia.py":"API/AI_Models/nvidia.py",
-    "Factory/Management/2_AI_Models/cloudflare.py":"API/AI_Models/cloudflare.py",
-    "Factory/Management/2_AI_Models/anges.py":"API/AI_Models/anges.py",
-    # Video
-    "Factory/Management/3_Media/pexels_video.py":"API/Video_Sources/pexels_video.py",
-    "Factory/Management/3_Media/pixabay_video.py":"API/Video_Sources/pixabay_video.py",
-    "Factory/Management/3_Media/coverr.py":"API/Video_Sources/coverr.py",
-    "Factory/Management/3_Media/gradient.py":"API/Video_Sources/gradient.py",
-    # Music
-    "Factory/Management/3_Media/freesound.py":"API/Music_Sources/freesound.py",
-    "Factory/Management/3_Media/pixabay_music.py":"API/Music_Sources/pixabay_music.py",
-    # Islamic
-    "Factory/Management/4_Islamic/fawaz.py":"URL/Islamic/fawaz.py",
-    # Audio/Text
-    "Factory/Management/5_Audio_Text/cta_AI.py":"API/Audio_Text/cta_AI.py",
-    "Factory/Management/5_Audio_Text/intro_AI.py":"API/Audio_Text/intro_AI.py",
-    "Factory/Management/5_Audio_Text/outro_AI.py":"API/Audio_Text/outro_AI.py",
-    "Factory/Management/5_Audio_Text/elevenlabs.py":"API/Audio_Text/elevenlabs.py",
-    "Factory/Management/5_Audio_Text/edge_tts.py":"URL/TTS_Translation/edge_tts.py",
-    "Factory/Management/5_Audio_Text/mymemory.py":"URL/TTS_Translation/mymemory.py",
-    # Uploader
-    "Factory/Management/Uploader/story_upload.py":"Uploader/story_upload.py",
-    # Story
-    "Factory/branch/story/main.py":"Story/Pipeline_Orchestration/composer.py",
-    "Factory/branch/story/duration.py":"Story/Pipeline_Orchestration/duration.py",
-    "Factory/branch/story/render_main.py":"Story/Final_Render/render_video.py",
-    "Factory/branch/story/ffmpeg_render.py":"Story/Final_Render/ffmpeg_render.py",
-    "Factory/branch/story/ass_builder.py":"Story/Subtitles_Text/ass_builder.py",
-    "Factory/branch/story/colors.py":"Config/App_Configs/palette.py",
-    "Factory/branch/story/cta_maker.py":"Story/Thumbnails/cta_maker.py",
-    "Factory/branch/story/requirements.txt":"requirements.txt",
-    # Fonts
-    "Factory/Management/assets/fonts/Amiri-Regular.ttf":"Assets/Amiri-Regular.ttf",
-    "Factory/Management/assets/fonts/PlayfairDisplay.ttf":"Assets/PlayfairDisplay.ttf",
-    "Factory/Management/assets/fonts/YatraOne.ttf":"Assets/YatraOne.ttf",
-    "Factory/Management/assets/fonts/Cinzel.ttf":"Assets/Cinzel.ttf",
-    "Factory/Management/assets/fonts/Lora.ttf":"Assets/Lora.ttf",
-    "Factory/Management/assets/fonts/Montserrat.ttf":"Assets/Montserrat.ttf",
-    "Factory/Management/assets/fonts/ReemKufi.ttf":"Assets/ReemKufi.ttf",
-    "Factory/Management/assets/fonts/RozhaOne.ttf":"Assets/RozhaOne.ttf",
-    "Factory/Management/assets/fonts/Scheherazade.ttf":"Assets/Scheherazade.ttf",
-    "Factory/Management/assets/fonts/Eczar.ttf":"Assets/Eczar.ttf",
-    "Factory/Management/assets/logo.png":"Assets/sawaj_logo.png",
-}
-copied = 0
-for src, dst in COPY.items():
-    sp, dp = ROOT/src, ROOT/dst
-    if sp.exists():
-        dp.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(sp, dp)
-        copied += 1
-log(f"{copied} files copied from Factory", "📋")
-
-# ═══════════════════════════════════════════════════════════
-# C. PYTHON STUBS (TODO for story generator)
-# ═══════════════════════════════════════════════════════════
-PY_STUBS = {
-    # AI Models
-    "API/AI_Models/magic.py": '''"""STUB: MagicHour AI - implement during story generator development."""
-import os
-def generate(prompt, max_tokens=500):
-    if not os.getenv("MAGICHOUR_API_KEY"): return None
-    # TODO: implement
-    return None
-''',
-    "API/AI_Models/tanvo.py": '''"""STUB: Tanvo AI - implement during story generator development."""
-import os
-def generate(prompt, max_tokens=500):
-    if not os.getenv("TANVO_API_KEY"): return None
-    # TODO: implement
-    return None
-''',
-    # Video fallback (working)
-    "API/Video_Sources/video_fallback.py": '''"""Master video source chain."""
-from pexels_video import fetch as pexels_video
-from pixabay_video import fetch as pixabay_video
-from coverr import fetch as coverr_video
-from gradient import fetch as gradient_video
-
-def fetch(query="islamic mosque night", duration=20, output_path="temp/bg.mp4"):
-    for name, fn in [("Pexels", pexels_video), ("Pixabay", pixabay_video),
-                     ("Coverr", coverr_video), ("Gradient", gradient_video)]:
-        try:
-            if fn(query=query, duration=duration, output_path=output_path):
-                print(f"[video_fallback] ✅ {name}")
-                return output_path
-        except Exception as e:
-            print(f"[video_fallback] {name} failed: {e}")
-    return None
-''',
-    # Music fallback (working)
-    "API/Music_Sources/music_fallback.py": '''"""Master music source chain."""
-from freesound import fetch as freesound
-from pixabay_music import fetch as pixabay_music
-
-def fetch(query="soft ambient", duration=60, output_path="temp/music.mp3"):
-    for name, fn in [("Freesound", freesound), ("Pixabay", pixabay_music)]:
-        try:
-            if fn(duration=duration, output_path=output_path):
-                print(f"[music_fallback] ✅ {name}")
-                return output_path
-        except Exception as e:
-            print(f"[music_fallback] {name} failed: {e}")
-    return None
-''',
-    # Photo stubs
-    "API/Photo_Sources/photo_fallback.py": '''"""Master photo source chain - TODO."""
-def fetch(query="islamic", output_path="temp/photo.jpg"):
-    # TODO: implement pexels/pixabay photo fallback
-    return None
-''',
-    "API/Photo_Sources/pexels_photo.py": '''"""STUB: Pexels photo - implement later."""
-def fetch(query="islamic", output_path="temp/photo.jpg"):
-    return None
-''',
-    "API/Photo_Sources/pixabay_photo.py": '''"""STUB: Pixabay photo - implement later."""
-def fetch(query="islamic", output_path="temp/photo.jpg"):
-    return None
-''',
-    "API/Photo_Sources/thumbnail_gen.py": '''"""STUB: AI thumbnail generator - implement later."""
-def generate(text="", output_path="temp/thumb.jpg"):
-    return None
-''',
-    # Islamic fallback (working)
-    "API/Islamic_Content/islamic_fallback.py": '''"""Master Islamic content chain."""
-import sys, os
-sys.path.insert(0, os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "URL", "Islamic"))
-from fawaz import fetch as fawaz
-
-def fetch(book=None, number=None):
-    return fawaz(book=book, number=number)
-''',
-    "API/Islamic_Content/quran_foundation.py": '''"""STUB: Quran Foundation API - implement later."""
-def fetch(surah=1, ayah=1):
-    return None
-''',
-    "API/Islamic_Content/ummah.py": '''"""STUB: Ummah API - implement later."""
-def fetch(endpoint="", **kwargs):
-    return None
-''',
-    # Voice fallback (working)
-    "API/Audio_Text/voice_fallback.py": '''"""Master voice chain."""
-import sys, os
-from elevenlabs import generate as elevenlabs_tts
-sys.path.insert(0, os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "URL", "TTS_Translation"))
-from edge_tts import generate as edge_tts
-
-def generate(text, output_path="temp/voice.mp3"):
-    try:
-        if elevenlabs_tts(text, output_path): return output_path
-    except Exception as e:
-        print(f"[voice_fallback] ElevenLabs: {e}")
-    try:
-        if edge_tts(text, output_path): return output_path
-    except Exception as e:
-        print(f"[voice_fallback] Edge-TTS: {e}")
-    return None
-''',
-    # Translate fallback (working)
-    "API/Audio_Text/translate_fallback.py": '''"""Master translation chain."""
-import sys, os
-from ai_fallback import generate_text
-sys.path.insert(0, os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "URL", "TTS_Translation"))
-from mymemory import translate as mymemory
-
-def translate(text, target_lang="hi"):
-    try:
-        result = generate_text(
-            f"Translate to {target_lang}. Only output translation:\\n\\n{text}", 500)
-        if result: return result
-    except Exception: pass
-    return mymemory(text, target_lang)
-''',
-    # URL/Media stubs
-    "URL/Media/pollinations_AI.py": '''"""STUB: Pollinations free AI image - implement later."""
-def generate(prompt="islamic", output_path="temp/img.jpg"):
-    return None
-''',
-    "URL/Media/url_video_fallback.py": '''"""STUB: Free URL video fallback - implement later."""
-def fetch(query="islamic", duration=20, output_path="temp/bg.mp4"):
-    return None
-''',
-    "URL/Media/url_music_fallback.py": '''"""STUB: Free URL music fallback - implement later."""
-def fetch(duration=60, output_path="temp/music.mp3"):
-    return None
-''',
-    "URL/Media/url_photo_fallback.py": '''"""STUB: Free URL photo fallback - implement later."""
-def fetch(query="islamic", output_path="temp/photo.jpg"):
-    return None
-''',
-    "URL/Media/url_thumbnail_gen.py": '''"""STUB: Free URL thumbnail generator - implement later."""
-def generate(text="", output_path="temp/thumb.jpg"):
-    return None
-''',
-    # URL/Islamic stubs
-    "URL/Islamic/islamic_url_fallback.py": '''"""STUB: Islamic URL fallback - implement later."""
-from fawaz import fetch as fawaz
-def fetch(book=None, number=None):
-    return fawaz(book=book, number=number)
-''',
-    "URL/Islamic/quran.py": '''"""STUB: Quran text - implement later."""
-def fetch(surah=1, ayah=1):
-    return None
-''',
-    "URL/Islamic/quran_audio.py": '''"""STUB: Quran audio - implement later."""
-def fetch(surah=1, ayah=1, output_path="temp/quran.mp3"):
-    return None
-''',
-    "URL/Islamic/quran_tafsir.py": '''"""STUB: Quran tafsir - implement later."""
-def fetch(surah=1, ayah=1):
-    return None
-''',
-    "URL/Islamic/hijri_date.py": '''"""STUB: Hijri date - implement later."""
-from datetime import datetime
-def get_today():
-    return {"hijri": "", "gregorian": datetime.now().strftime("%Y-%m-%d")}
-''',
-    # URL/TTS stubs
-    "URL/TTS_Translation/audio_text_url_fallback.py": '''"""STUB: Audio/Text URL fallback - implement later."""
-from edge_tts import generate as edge_tts
-def generate(text, output_path="temp/voice.mp3"):
-    return edge_tts(text, output_path)
-''',
-    "URL/TTS_Translation/translator.py": '''"""STUB: LibreTranslate/etc - implement later."""
-from mymemory import translate
-def translate_text(text, target_lang="hi"):
-    return translate(text, target_lang)
-''',
-    # URL/Text stubs
-    "URL/Text_Content/jokes.py": '''"""STUB: Jokes fetcher - implement later."""
-def fetch():
-    return ""
-''',
-    "URL/Text_Content/quotes.py": '''"""STUB: Quotes fetcher - implement later."""
-def fetch():
-    return ""
-''',
-    # Uploader stubs
-    "Uploader/thumbnail_upload.py": '''"""STUB: Thumbnail uploader - implement later."""
-def upload(path):
-    return None
-''',
-    "Uploader/cloudinary.py": '''"""STUB: Cloudinary uploader - implement later."""
-def upload(file_path):
-    return None
-''',
-    "Uploader/webhook_uploader.py": '''"""STUB: Generic webhook uploader - implement later."""
-def send(url, payload):
-    return None
-''',
-    # Story/Content
-    "Story/Content/get_hadith.py": '''"""Hadith orchestrator (working)."""
-from islamic_fallback import fetch
-
-def get_hadith(book=None, number=None):
-    return fetch(book=book, number=number)
-''',
-    "Story/Content/translator.py": '''"""STUB: Story translator - implement later."""
-from translate_fallback import translate
-def to_hindi(text):
-    return translate(text, "hi")
-''',
-    # Story/Audio stubs
-    "Story/Audio/generate_voice.py": '''"""STUB: Voice generator orchestrator - implement later."""
-from voice_fallback import generate
-def generate_voice(text, output_path="temp/voice.mp3"):
-    return generate(text, output_path)
-''',
-    "Story/Audio/mix_audio.py": '''"""STUB: Audio mixer - implement later."""
-def mix(voice_path, music_path, output_path="temp/mixed.mp3"):
-    return None
-''',
-    "Story/Audio/mixer.py": '''"""STUB: Low-level FFmpeg mix - implement later."""
-def amix(inputs, output):
-    return None
-''',
-    "Story/Audio/volume_control.py": '''"""STUB: Volume/ducking - implement later."""
-def duck(voice, music):
-    return None
-''',
-    # Story/Video stubs
-    "Story/Video/fetch_background.py": '''"""STUB: Background video orchestrator - implement later."""
-from video_fallback import fetch
-def fetch_bg(query="islamic", duration=20, output_path="temp/bg.mp4"):
-    return fetch(query=query, duration=duration, output_path=output_path)
-''',
-    "Story/Video/apply_effects.py": '''"""STUB: Effects pipeline - implement later."""
-def apply(input_path, output_path):
-    return None
-''',
-    "Story/Video/filter_apply.py": '''"""STUB: FFmpeg filters - implement later."""
-def apply_filters(input_path, filters, output_path):
-    return None
-''',
-    "Story/Video/lut_apply.py": '''"""STUB: LUT color grade - implement later."""
-def apply_lut(input_path, lut_path, output_path):
-    return None
-''',
-    "Story/Video/intro_anim.py": '''"""STUB: Intro animation - implement later."""
-def build(intro_text, duration=2.5, output_path="temp/intro.mp4"):
-    return None
-''',
-    "Story/Video/transition.py": '''"""STUB: Clip transitions - implement later."""
-def transition(clip1, clip2, type="fade", duration=0.5, output_path="temp/trans.mp4"):
-    return None
-''',
-    "Story/Video/text_overlay.py": '''"""STUB: drawtext overlay - implement later."""
-def overlay(input_path, text, output_path):
-    return None
-''',
-    "Story/Video/ffmpeg_utils.py": '''"""STUB: Shared FFmpeg helpers - implement later."""
-import subprocess
-def run(cmd, timeout=300):
-    return subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)
-''',
-    # Story/Subtitles
-    "Story/Subtitles_Text/karaoke.py": '''"""STUB: Karaoke helper - implement later."""
-def build_karaoke(words, timings):
-    return ""
-''',
-    # Story/Thumbnails
-    "Story/Thumbnails/generate_thumb.py": '''"""STUB: Thumbnail orchestrator - implement later."""
-def generate(text="", output_path="temp/thumb.jpg"):
-    return None
-''',
-    "Story/Thumbnails/thumb_maker.py": '''"""STUB: PIL thumbnail composer - implement later."""
-def make(bg_path, text, output_path="temp/thumb.jpg"):
-    return None
-''',
-    # Story/Upload
-    "Story/Upload/final_upload.py": '''"""STUB: Upload orchestrator - implement later."""
-import sys, os
-sys.path.insert(0, os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "Uploader"))
-from story_upload import upload_to_drive
-
-def upload(video_path, name=None):
-    return upload_to_drive(video_path, name)
-''',
-}
-stub_count = 0
-for path, content in PY_STUBS.items():
-    f = ROOT/path
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(content, encoding="utf-8")
-    stub_count += 1
-log(f"{stub_count} python stubs created", "📝")
-
-# ═══════════════════════════════════════════════════════════
-# D. JSON CONFIGS
-# ═══════════════════════════════════════════════════════════
-CONFIGS = {
-    "Config/App_Configs/app_config.json": {
-        "app_name": "Sawaj Studio",
-        "version": "2.0.0",
-        "timezone": "Asia/Kolkata",
-        "default_language": "hi"
-    },
-    "Config/App_Configs/video_settings.json": {
-        "width": 1080, "height": 1920, "fps": 24,
-        "video_codec": "libx264", "preset": "ultrafast", "crf": 30,
-        "audio_codec": "aac", "audio_bitrate": "128k"
-    },
-    "Config/App_Configs/default_template.json": {
-        "template": "story_default",
-        "language": "hi",
-        "duration_fallback": 15.0
-    },
-    "Config/App_Configs/colors.json": {
-        "premium_colors": [
-            "&H00D7FF&","&HFFFF00&","&H507FFF&","&H90EE90&",
-            "&HD670DA&","&HEBCE87&","&H00FFFF&","&H00A5FF&",
-            "&HCBC0FF&","&HD0E040&","&HFF00FF&","&H00FF00&"
-        ]
-    },
-    "Config/Language_Settings/hi_font_settings.json": {
-        "font": "YatraOne.ttf", "size": 65, "style_name": "Hindi"
-    },
-    "Config/Language_Settings/en_font_settings.json": {
-        "font": "PlayfairDisplay.ttf", "size": 52, "style_name": "English"
-    },
-    "Config/Language_Settings/ar_font_settings.json": {
-        "font": "Amiri-Regular.ttf", "size": 75, "style_name": "Arabic", "rtl": True
-    },
-    "Config/Language_Settings/hi_strings.json": {
-        "intro_default": "सवाज स्टूडियो प्रस्तुत करता है",
-        "outro_default": "जज़ाकअल्लाह खैर",
-        "cta_default": "रोज़ाना हदीस के लिए फॉलो करें",
-        "hadith_prefix": "हदीस शरीफ"
-    },
-    "Config/Language_Settings/en_strings.json": {
-        "intro_default": "SAWAJ STUDIO Presents",
-        "outro_default": "JazakAllah Khair",
-        "cta_default": "Follow for Daily Hadith"
-    },
-    "Config/Language_Settings/ar_strings.json": {
-        "bismillah": "بسم الله الرحمن الرحيم",
-        "salam": "السلام عليكم",
-        "jazak": "جزاك الله خير"
-    },
-    "Config/Style_Settings/hindi_style.json": {
-        "primary_color": "&H00FFFFFF&", "outline": 3, "shadow": 2, "margin_v": 570
-    },
-    "Config/Style_Settings/arabic_style.json": {
-        "primary_color": "&H00FFFFFF&", "outline": 3, "shadow": 2, "margin_v": 760, "rtl": True
-    },
-    "Config/Style_Settings/english_style.json": {
-        "primary_color": "&H00FFFFFF&", "outline": 3, "shadow": 2, "margin_v": 400
-    },
-    "Config/Template_Settings/intro_1.json": {
-        "duration": 2.5, "text": "SAWAJ STUDIO Presents", "animation": "fade"
-    },
-    "Config/Template_Settings/outro_1.json": {
-        "duration": 3.5, "text": "JazakAllah Khair", "animation": "fade"
-    },
-    "Config/Template_Settings/cta_default.json": {
-        "text": "Like • Share • Follow", "duration": 5.0
-    },
-    "Config/Template_Settings/thumb_style_1.json": {
-        "bg_color": "#1a1a1a", "text_color": "#FFD700", "font_size": 60
-    },
-    "Config/Template_Settings/thumb_style_2.json": {
-        "bg_color": "#000000", "text_color": "#00FFFF", "font_size": 70
-    },
-}
-for path, data in CONFIGS.items():
-    f = ROOT/path
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-log(f"{len(CONFIGS)} JSON configs created", "⚙️")
-
-# ═══════════════════════════════════════════════════════════
-# E. BINARY PLACEHOLDERS (empty + README)
-# ═══════════════════════════════════════════════════════════
-BINARIES = [
-    "Assets/whoosh.mp3",
-    "Assets/default_ambient.mp3",
-    "Assets/dust_particles.mp4",
-    "Assets/fade_black.mp4",
-    "Assets/mosque_timelapse.mp4",
-    "Assets/like_share_btn.png",
-]
-for p in BINARIES:
-    f = ROOT/p
-    if not f.exists() or f.stat().st_size == 0:
-        f.write_bytes(b"")  # empty placeholder
-
-# Valid identity LUT (won't break FFmpeg)
-cube = ROOT/"Assets/cinematic_look.cube"
-if not cube.exists() or cube.stat().st_size == 0:
-    cube.write_text(
-        'TITLE "Identity LUT - replace with cinematic look"\n'
-        'LUT_3D_SIZE 2\n'
-        '0.0 0.0 0.0\n1.0 0.0 0.0\n0.0 1.0 0.0\n1.0 1.0 0.0\n'
-        '0.0 0.0 1.0\n1.0 0.0 1.0\n0.0 1.0 1.0\n1.0 1.0 1.0\n',
-        encoding="utf-8"
-    )
-
-# Assets README
-(ROOT/"Assets/README.md").write_text("""# Assets Folder
-
-## ⚠️ Placeholder Files — Replace Before Running Pipeline
-
-| File | Status | Replace With |
-|------|--------|--------------|
-| `whoosh.mp3` | ⬜ Empty | Real transition SFX |
-| `default_ambient.mp3` | ⬜ Empty | Real ambient music |
-| `dust_particles.mp4` | ⬜ Empty | Real particle overlay |
-| `fade_black.mp4` | ⬜ Empty | Real fade transition |
-| `mosque_timelapse.mp4` | ⬜ Empty | Real fallback video |
-| `like_share_btn.png` | ⬜ Empty | Real CTA button |
-| `cinematic_look.cube` | ✅ Valid identity LUT | Replace with cinematic LUT |
-
-## ✅ Working Files
-- All `.ttf` fonts — copied from Factory
-- `sawaj_logo.png` — copied from Factory
-
-## 🔧 How to Add Real Files
-1. Locally clone Development repo
-2. Add real files in `Assets/`
-3. `git add Assets/ && git commit -m "add assets" && git push`
-""", encoding="utf-8")
-log(f"{len(BINARIES)+1} binary placeholders + README", "🎨")
-
-# ═══════════════════════════════════════════════════════════
-# F. FIX IMPORTS IN COPIED FILES
-# ═══════════════════════════════════════════════════════════
-FIXES = [
-    # ass_builder.py: colors → palette
-    ("Story/Subtitles_Text/ass_builder.py",
-     r"from colors import get_color_tag",
-     "from palette import get_color_tag"),
-    # cta_AI/intro_AI/outro_AI/mymemory: ai_path
-    ("API/Audio_Text/cta_AI.py",
-     r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)',
-     r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
-    ("API/Audio_Text/intro_AI.py",
-     r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)',
-     r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
-    ("API/Audio_Text/outro_AI.py",
-     r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)',
-     r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
-    ("URL/TTS_Translation/mymemory.py",
-     r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)',
-     r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
-    # cta_maker.py: font paths
-    ("Story/Thumbnails/cta_maker.py",
-     r'font_dirs = \[\s*\n\s*os\.path\.join\(here, "\.\.", "\.\.", "Management", "assets", "fonts"\),\s*\n\s*os\.path\.join\(here, "\.\.", "\.\.", "assets", "fonts"\),\s*\n\s*os\.path\.join\(here, "\.\.", "assets", "fonts"\),\s*\n\s*\]',
-     'font_dirs = [os.path.join(here, "..", "..", "Assets"),]'),
-    # ffmpeg_render.py: fonts_dir
-    ("Story/Final_Render/ffmpeg_render.py",
-     r'fonts_dir = os\.path\.normpath\(os\.path\.join\(here, "\.\.", "\.\.", "Management", "assets", "fonts"\)\)',
-     'fonts_dir = os.path.normpath(os.path.join(here, "..", "..", "Assets"))'),
-    # ffmpeg_render.py: logo path
-    ("Story/Final_Render/ffmpeg_render.py",
-     r'logo_path = os\.path\.normpath\(os\.path\.join\(here, "\.\.", "\.\.", "Management", "assets", "logo\.png"\)\)',
-     'logo_path = os.path.normpath(os.path.join(here, "..", "..", "Assets", "sawaj_logo.png"))'),
-]
-fix_count = 0
-for rel, pat, rep in FIXES:
-    f = ROOT/rel
-    if not f.exists(): continue
-    c = f.read_text(encoding="utf-8", errors="ignore")
-    nc = re.sub(pat, rep, c)
-    if nc != c:
-        f.write_text(nc, encoding="utf-8")
-        fix_count += 1
-log(f"{fix_count} files fixed (imports/paths)", "✏️")
-
-# ── composer.py sys.path fix ──
-comp = ROOT/"Story/Pipeline_Orchestration/composer.py"
-if comp.exists():
-    c = comp.read_text(encoding="utf-8")
-    old = '''CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-BRANCH_DIR = os.path.dirname(CURRENT_DIR)
-FACTORY_DIR = os.path.dirname(BRANCH_DIR)
-MGMT = os.path.join(FACTORY_DIR, "Management")
-for sub in ["1_Git_Tools", "2_AI_Models", "3_Media", "4_Islamic", "5_Audio_Text", "Uploader"]:
-    sys.path.insert(0, os.path.join(MGMT, sub))'''
-    new = '''CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEV_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-for sub in [
-    "API/AI_Models","API/Video_Sources","API/Music_Sources",
-    "API/Photo_Sources","API/Islamic_Content","API/Audio_Text",
-    "URL/Media","URL/Islamic","URL/TTS_Translation","URL/Text_Content",
-    "Story/Pipeline_Orchestration","Story/Final_Render",
-    "Story/Subtitles_Text","Story/Thumbnails",
-    "Uploader","Config/App_Configs",
-]:
-    sys.path.insert(0, os.path.join(DEV_ROOT, sub))'''
-    if old in c:
-        c = c.replace(old, new)
-    c = c.replace("from render_main import build_and_render_story",
-                  "from render_video import build_and_render_story")
-    comp.write_text(c, encoding="utf-8")
-    log("composer.py fixed", "🔧")
-
-# ── render_video.py sys.path fix ──
-rv = ROOT/"Story/Final_Render/render_video.py"
-if rv.exists():
-    c = rv.read_text(encoding="utf-8")
-    old = '''CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-BRANCH_DIR = os.path.dirname(CURRENT_DIR)
-FACTORY_DIR = os.path.dirname(BRANCH_DIR)
-MGMT = os.path.join(FACTORY_DIR, "Management")
-sys.path.insert(0, CURRENT_DIR)
-ASSETS_DIR = os.path.join(MGMT, "assets")
-FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
-LOGO_PATH = os.path.join(ASSETS_DIR, "logo.png")'''
-    new = '''CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEV_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))
-sys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Pipeline_Orchestration"))
-sys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Subtitles_Text"))
-sys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Thumbnails"))
-sys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Final_Render"))
-ASSETS_DIR = os.path.join(DEV_ROOT, "Assets")
-FONTS_DIR = ASSETS_DIR
-LOGO_PATH = os.path.join(ASSETS_DIR, "sawaj_logo.png")'''
-    if old in c: c = c.replace(old, new)
-    rv.write_text(c, encoding="utf-8")
-    log("render_video.py fixed", "🔧")
-
-# ═══════════════════════════════════════════════════════════
-# G. .gitignore + .gitkeep
-# ═══════════════════════════════════════════════════════════
-(ROOT/".gitignore").write_text("""# ═══ Runtime Logs (never commit) ═══
-Story/Runtime_Logs/*
-!Story/Runtime_Logs/.gitkeep
-
-# ═══ Python ═══
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-venv/
-env/
-
-# ═══ Temp ═══
-temp/
-*.tmp
-
-# ═══ OS ═══
-.DS_Store
-Thumbs.db
-
-# ═══ IDE ═══
-.vscode/
-.idea/
-*.swp
-
-# ═══ Env ═══
-.env
-.env.local
-""", encoding="utf-8")
-
-(ROOT/"Story/Runtime_Logs/.gitkeep").write_text("")
-
-# ═══════════════════════════════════════════════════════════
-# H. FINAL REPORT
-# ═══════════════════════════════════════════════════════════
-def count_files(folder):
-    p = ROOT/folder
-    return len([f for f in p.rglob("*") if f.is_file()]) if p.exists() else 0
-
-print("\n" + "═"*62)
-print("✅ FULL STRUCTURE + FILES CREATED")
-print("═"*62)
-for folder in ["API","URL","Assets","Config","Uploader","Story"]:
-    print(f"  📁 {folder:10s} → {count_files(folder):3d} files")
-print(f"  📄 requirements.txt  → {'✅' if (ROOT/'requirements.txt').exists() else '❌'}")
-print(f"  📄 .gitignore        → ✅")
-print("═"*62)
-print("ℹ️  Factory/ folder untouched — you delete it manually")
-print("ℹ️  Story generator stubs ready — implement later")
-print("═"*62 + "\n")
-PYEOF
+          import os, re, json, shutil
+          from pathlib import Path
+          
+          ROOT = Path.cwd()
+          def log(m, e="•"): print(f"{e} {m}")
+          
+          # ═══════════════════════════════════════════════════════════
+          # A. FOLDERS
+          # ═══════════════════════════════════════════════════════════
+          FOLDERS = [
+              "API/AI_Models","API/Video_Sources","API/Music_Sources",
+              "API/Photo_Sources","API/Islamic_Content","API/Audio_Text",
+              "URL/Media","URL/Islamic","URL/TTS_Translation","URL/Text_Content",
+              "Assets",
+              "Config/App_Configs","Config/Language_Settings",
+              "Config/Style_Settings","Config/Template_Settings",
+              "Uploader",
+              "Story/Pipeline_Orchestration","Story/Content","Story/Audio",
+              "Story/Video","Story/Subtitles_Text","Story/Thumbnails",
+              "Story/Final_Render","Story/Upload","Story/Runtime_Logs",
+          ]
+          for f in FOLDERS:
+              (ROOT/f).mkdir(parents=True, exist_ok=True)
+          log(f"{len(FOLDERS)} folders created", "📁")
+          
+          # ── __init__.py everywhere ──
+          PACKAGES = [f for f in FOLDERS if not f.endswith("Runtime_Logs")] + ["API","URL","Config","Story"]
+          for p in PACKAGES:
+              init = ROOT/p/"__init__.py"
+              if not init.exists(): init.write_text("")
+          log(f"{len(PACKAGES)} __init__.py created", "🐍")
+          
+          # ═══════════════════════════════════════════════════════════
+          # B. COPY FILES FROM FACTORY (Factory safe)
+          # ═══════════════════════════════════════════════════════════
+          COPY = {
+              "Factory/Management/2_AI_Models/ai_fallback.py":"API/AI_Models/ai_fallback.py",
+              "Factory/Management/2_AI_Models/gemini.py":"API/AI_Models/gemini.py",
+              "Factory/Management/2_AI_Models/openrouter.py":"API/AI_Models/openrouter.py",
+              "Factory/Management/2_AI_Models/groq.py":"API/AI_Models/groq.py",
+              "Factory/Management/2_AI_Models/cohere.py":"API/AI_Models/cohere.py",
+              "Factory/Management/2_AI_Models/nvidia.py":"API/AI_Models/nvidia.py",
+              "Factory/Management/2_AI_Models/cloudflare.py":"API/AI_Models/cloudflare.py",
+              "Factory/Management/2_AI_Models/anges.py":"API/AI_Models/anges.py",
+              "Factory/Management/3_Media/pexels_video.py":"API/Video_Sources/pexels_video.py",
+              "Factory/Management/3_Media/pixabay_video.py":"API/Video_Sources/pixabay_video.py",
+              "Factory/Management/3_Media/coverr.py":"API/Video_Sources/coverr.py",
+              "Factory/Management/3_Media/gradient.py":"API/Video_Sources/gradient.py",
+              "Factory/Management/3_Media/freesound.py":"API/Music_Sources/freesound.py",
+              "Factory/Management/3_Media/pixabay_music.py":"API/Music_Sources/pixabay_music.py",
+              "Factory/Management/4_Islamic/fawaz.py":"URL/Islamic/fawaz.py",
+              "Factory/Management/5_Audio_Text/cta_AI.py":"API/Audio_Text/cta_AI.py",
+              "Factory/Management/5_Audio_Text/intro_AI.py":"API/Audio_Text/intro_AI.py",
+              "Factory/Management/5_Audio_Text/outro_AI.py":"API/Audio_Text/outro_AI.py",
+              "Factory/Management/5_Audio_Text/elevenlabs.py":"API/Audio_Text/elevenlabs.py",
+              "Factory/Management/5_Audio_Text/edge_tts.py":"URL/TTS_Translation/edge_tts.py",
+              "Factory/Management/5_Audio_Text/mymemory.py":"URL/TTS_Translation/mymemory.py",
+              "Factory/Management/Uploader/story_upload.py":"Uploader/story_upload.py",
+              "Factory/branch/story/main.py":"Story/Pipeline_Orchestration/composer.py",
+              "Factory/branch/story/duration.py":"Story/Pipeline_Orchestration/duration.py",
+              "Factory/branch/story/render_main.py":"Story/Final_Render/render_video.py",
+              "Factory/branch/story/ffmpeg_render.py":"Story/Final_Render/ffmpeg_render.py",
+              "Factory/branch/story/ass_builder.py":"Story/Subtitles_Text/ass_builder.py",
+              "Factory/branch/story/colors.py":"Config/App_Configs/palette.py",
+              "Factory/branch/story/cta_maker.py":"Story/Thumbnails/cta_maker.py",
+              "Factory/branch/story/requirements.txt":"requirements.txt",
+              "Factory/Management/assets/fonts/Amiri-Regular.ttf":"Assets/Amiri-Regular.ttf",
+              "Factory/Management/assets/fonts/PlayfairDisplay.ttf":"Assets/PlayfairDisplay.ttf",
+              "Factory/Management/assets/fonts/YatraOne.ttf":"Assets/YatraOne.ttf",
+              "Factory/Management/assets/fonts/Cinzel.ttf":"Assets/Cinzel.ttf",
+              "Factory/Management/assets/fonts/Lora.ttf":"Assets/Lora.ttf",
+              "Factory/Management/assets/fonts/Montserrat.ttf":"Assets/Montserrat.ttf",
+              "Factory/Management/assets/fonts/ReemKufi.ttf":"Assets/ReemKufi.ttf",
+              "Factory/Management/assets/fonts/RozhaOne.ttf":"Assets/RozhaOne.ttf",
+              "Factory/Management/assets/fonts/Scheherazade.ttf":"Assets/Scheherazade.ttf",
+              "Factory/Management/assets/fonts/Eczar.ttf":"Assets/Eczar.ttf",
+              "Factory/Management/assets/logo.png":"Assets/sawaj_logo.png",
+          }
+          copied = 0
+          for src, dst in COPY.items():
+              sp, dp = ROOT/src, ROOT/dst
+              if sp.exists():
+                  dp.parent.mkdir(parents=True, exist_ok=True)
+                  shutil.copy2(sp, dp)
+                  copied += 1
+          log(f"{copied} files copied from Factory", "📋")
+          
+          # ═══════════════════════════════════════════════════════════
+          # C. PYTHON STUBS
+          # ═══════════════════════════════════════════════════════════
+          PY_STUBS = {
+              "API/AI_Models/magic.py": '"""STUB: MagicHour AI."""\nimport os\ndef generate(prompt, max_tokens=500):\n    if not os.getenv("MAGICHOUR_API_KEY"): return None\n    return None\n',
+              "API/AI_Models/tanvo.py": '"""STUB: Tanvo AI."""\nimport os\ndef generate(prompt, max_tokens=500):\n    if not os.getenv("TANVO_API_KEY"): return None\n    return None\n',
+              "API/Video_Sources/video_fallback.py": 'from pexels_video import fetch as pexels_video\nfrom pixabay_video import fetch as pixabay_video\nfrom coverr import fetch as coverr_video\nfrom gradient import fetch as gradient_video\n\ndef fetch(query="islamic mosque night", duration=20, output_path="temp/bg.mp4"):\n    for name, fn in [("Pexels", pexels_video), ("Pixabay", pixabay_video), ("Coverr", coverr_video), ("Gradient", gradient_video)]:\n        try:\n            if fn(query=query, duration=duration, output_path=output_path):\n                return output_path\n        except Exception: pass\n    return None\n',
+              "API/Music_Sources/music_fallback.py": 'from freesound import fetch as freesound\nfrom pixabay_music import fetch as pixabay_music\n\ndef fetch(query="soft ambient", duration=60, output_path="temp/music.mp3"):\n    for name, fn in [("Freesound", freesound), ("Pixabay", pixabay_music)]:\n        try:\n            if fn(duration=duration, output_path=output_path):\n                return output_path\n        except Exception: pass\n    return None\n',
+              "API/Photo_Sources/photo_fallback.py": 'def fetch(query="islamic", output_path="temp/photo.jpg"):\n    return None\n',
+              "API/Photo_Sources/pexels_photo.py": 'def fetch(query="islamic", output_path="temp/photo.jpg"):\n    return None\n',
+              "API/Photo_Sources/pixabay_photo.py": 'def fetch(query="islamic", output_path="temp/photo.jpg"):\n    return None\n',
+              "API/Photo_Sources/thumbnail_gen.py": 'def generate(text="", output_path="temp/thumb.jpg"):\n    return None\n',
+              "API/Islamic_Content/islamic_fallback.py": 'import sys, os\nsys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "URL", "Islamic"))\nfrom fawaz import fetch as fawaz\n\ndef fetch(book=None, number=None):\n    return fawaz(book=book, number=number)\n',
+              "API/Islamic_Content/quran_foundation.py": 'def fetch(surah=1, ayah=1):\n    return None\n',
+              "API/Islamic_Content/ummah.py": 'def fetch(endpoint="", **kwargs):\n    return None\n',
+              "API/Audio_Text/voice_fallback.py": 'import sys, os\nfrom elevenlabs import generate as elevenlabs_tts\nsys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "URL", "TTS_Translation"))\nfrom edge_tts import generate as edge_tts\n\ndef generate(text, output_path="temp/voice.mp3"):\n    try:\n        if elevenlabs_tts(text, output_path): return output_path\n    except Exception: pass\n    try:\n        if edge_tts(text, output_path): return output_path\n    except Exception: pass\n    return None\n',
+              "API/Audio_Text/translate_fallback.py": 'import sys, os\nfrom ai_fallback import generate_text\nsys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "URL", "TTS_Translation"))\nfrom mymemory import translate as mymemory\n\ndef translate(text, target_lang="hi"):\n    try:\n        result = generate_text(f"Translate to {target_lang}. Only output translation:\\n\\n{text}", 500)\n        if result: return result\n    except Exception: pass\n    return mymemory(text, target_lang)\n',
+              "URL/Media/pollinations_AI.py": 'def generate(prompt="islamic", output_path="temp/img.jpg"):\n    return None\n',
+              "URL/Media/url_video_fallback.py": 'def fetch(query="islamic", duration=20, output_path="temp/bg.mp4"):\n    return None\n',
+              "URL/Media/url_music_fallback.py": 'def fetch(duration=60, output_path="temp/music.mp3"):\n    return None\n',
+              "URL/Media/url_photo_fallback.py": 'def fetch(query="islamic", output_path="temp/photo.jpg"):\n    return None\n',
+              "URL/Media/url_thumbnail_gen.py": 'def generate(text="", output_path="temp/thumb.jpg"):\n    return None\n',
+              "URL/Islamic/islamic_url_fallback.py": 'from fawaz import fetch as fawaz\ndef fetch(book=None, number=None):\n    return fawaz(book=book, number=number)\n',
+              "URL/Islamic/quran.py": 'def fetch(surah=1, ayah=1):\n    return None\n',
+              "URL/Islamic/quran_audio.py": 'def fetch(surah=1, ayah=1, output_path="temp/quran.mp3"):\n    return None\n',
+              "URL/Islamic/quran_tafsir.py": 'def fetch(surah=1, ayah=1):\n    return None\n',
+              "URL/Islamic/hijri_date.py": 'from datetime import datetime\ndef get_today():\n    return {"hijri": "", "gregorian": datetime.now().strftime("%Y-%m-%d")}\n',
+              "URL/TTS_Translation/audio_text_url_fallback.py": 'from edge_tts import generate as edge_tts\ndef generate(text, output_path="temp/voice.mp3"):\n    return edge_tts(text, output_path)\n',
+              "URL/TTS_Translation/translator.py": 'from mymemory import translate\ndef translate_text(text, target_lang="hi"):\n    return translate(text, target_lang)\n',
+              "URL/Text_Content/jokes.py": 'def fetch():\n    return ""\n',
+              "URL/Text_Content/quotes.py": 'def fetch():\n    return ""\n',
+              "Uploader/thumbnail_upload.py": 'def upload(path):\n    return None\n',
+              "Uploader/cloudinary.py": 'def upload(file_path):\n    return None\n',
+              "Uploader/webhook_uploader.py": 'def send(url, payload):\n    return None\n',
+              "Story/Content/get_hadith.py": 'from islamic_fallback import fetch\ndef get_hadith(book=None, number=None):\n    return fetch(book=book, number=number)\n',
+              "Story/Content/translator.py": 'from translate_fallback import translate\ndef to_hindi(text):\n    return translate(text, "hi")\n',
+              "Story/Audio/generate_voice.py": 'from voice_fallback import generate\ndef generate_voice(text, output_path="temp/voice.mp3"):\n    return generate(text, output_path)\n',
+              "Story/Audio/mix_audio.py": 'def mix(voice_path, music_path, output_path="temp/mixed.mp3"):\n    return None\n',
+              "Story/Audio/mixer.py": 'def amix(inputs, output):\n    return None\n',
+              "Story/Audio/volume_control.py": 'def duck(voice, music):\n    return None\n',
+              "Story/Video/fetch_background.py": 'from video_fallback import fetch\ndef fetch_bg(query="islamic", duration=20, output_path="temp/bg.mp4"):\n    return fetch(query=query, duration=duration, output_path=output_path)\n',
+              "Story/Video/apply_effects.py": 'def apply(input_path, output_path):\n    return None\n',
+              "Story/Video/filter_apply.py": 'def apply_filters(input_path, filters, output_path):\n    return None\n',
+              "Story/Video/lut_apply.py": 'def apply_lut(input_path, lut_path, output_path):\n    return None\n',
+              "Story/Video/intro_anim.py": 'def build(intro_text, duration=2.5, output_path="temp/intro.mp4"):\n    return None\n',
+              "Story/Video/transition.py": 'def transition(clip1, clip2, type="fade", duration=0.5, output_path="temp/trans.mp4"):\n    return None\n',
+              "Story/Video/text_overlay.py": 'def overlay(input_path, text, output_path):\n    return None\n',
+              "Story/Video/ffmpeg_utils.py": 'import subprocess\ndef run(cmd, timeout=300):\n    return subprocess.run(cmd, shell=True, capture_output=True, timeout=timeout)\n',
+              "Story/Subtitles_Text/karaoke.py": 'def build_karaoke(words, timings):\n    return ""\n',
+              "Story/Thumbnails/generate_thumb.py": 'def generate(text="", output_path="temp/thumb.jpg"):\n    return None\n',
+              "Story/Thumbnails/thumb_maker.py": 'def make(bg_path, text, output_path="temp/thumb.jpg"):\n    return None\n',
+              "Story/Upload/final_upload.py": 'import sys, os\nsys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "Uploader"))\nfrom story_upload import upload_to_drive\ndef upload(video_path, name=None):\n    return upload_to_drive(video_path, name)\n'
+          }
+          for path, content in PY_STUBS.items():
+              f = ROOT/path
+              f.parent.mkdir(parents=True, exist_ok=True)
+              f.write_text(content, encoding="utf-8")
+          log(f"{len(PY_STUBS)} python stubs created", "📝")
+          
+          # ═══════════════════════════════════════════════════════════
+          # D. JSON CONFIGS
+          # ═══════════════════════════════════════════════════════════
+          CONFIGS = {
+              "Config/App_Configs/app_config.json": {"app_name": "Sawaj Studio", "version": "2.0.0", "timezone": "Asia/Kolkata", "default_language": "hi"},
+              "Config/App_Configs/video_settings.json": {"width": 1080, "height": 1920, "fps": 24, "video_codec": "libx264", "preset": "ultrafast", "crf": 30, "audio_codec": "aac", "audio_bitrate": "128k"},
+              "Config/App_Configs/default_template.json": {"template": "story_default", "language": "hi", "duration_fallback": 15.0},
+              "Config/App_Configs/colors.json": {"premium_colors": ["&H00D7FF&","&HFFFF00&","&H507FFF&","&H90EE90&","&HD670DA&","&HEBCE87&","&H00FFFF&","&H00A5FF&","&HCBC0FF&","&HD0E040&","&HFF00FF&","&H00FF00&"]},
+              "Config/Language_Settings/hi_font_settings.json": {"font": "YatraOne.ttf", "size": 65, "style_name": "Hindi"},
+              "Config/Language_Settings/en_font_settings.json": {"font": "PlayfairDisplay.ttf", "size": 52, "style_name": "English"},
+              "Config/Language_Settings/ar_font_settings.json": {"font": "Amiri-Regular.ttf", "size": 75, "style_name": "Arabic", "rtl": True},
+              "Config/Language_Settings/hi_strings.json": {"intro_default": "सवाज स्टूडियो प्रस्तुत करता है", "outro_default": "जज़ाकअल्लाह खैर", "cta_default": "रोज़ाना हदीस के लिए फॉलो करें", "hadith_prefix": "हदीस शरीफ"},
+              "Config/Language_Settings/en_strings.json": {"intro_default": "SAWAJ STUDIO Presents", "outro_default": "JazakAllah Khair", "cta_default": "Follow for Daily Hadith"},
+              "Config/Language_Settings/ar_strings.json": {"bismillah": "بسم الله الرحمن الرحيم", "salam": "السلام عليكم", "jazak": "جزاك الله خير"},
+              "Config/Style_Settings/hindi_style.json": {"primary_color": "&H00FFFFFF&", "outline": 3, "shadow": 2, "margin_v": 570},
+              "Config/Style_Settings/arabic_style.json": {"primary_color": "&H00FFFFFF&", "outline": 3, "shadow": 2, "margin_v": 760, "rtl": True},
+              "Config/Style_Settings/english_style.json": {"primary_color": "&H00FFFFFF&", "outline": 3, "shadow": 2, "margin_v": 400},
+              "Config/Template_Settings/intro_1.json": {"duration": 2.5, "text": "SAWAJ STUDIO Presents", "animation": "fade"},
+              "Config/Template_Settings/outro_1.json": {"duration": 3.5, "text": "JazakAllah Khair", "animation": "fade"},
+              "Config/Template_Settings/cta_default.json": {"text": "Like • Share • Follow", "duration": 5.0},
+              "Config/Template_Settings/thumb_style_1.json": {"bg_color": "#1a1a1a", "text_color": "#FFD700", "font_size": 60},
+              "Config/Template_Settings/thumb_style_2.json": {"bg_color": "#000000", "text_color": "#00FFFF", "font_size": 70},
+          }
+          for path, data in CONFIGS.items():
+              f = ROOT/path
+              f.parent.mkdir(parents=True, exist_ok=True)
+              f.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+          log(f"{len(CONFIGS)} JSON configs created", "⚙️")
+          
+          # ═══════════════════════════════════════════════════════════
+          # E. BINARY PLACEHOLDERS
+          # ═══════════════════════════════════════════════════════════
+          BINARIES = ["Assets/whoosh.mp3","Assets/default_ambient.mp3","Assets/dust_particles.mp4","Assets/fade_black.mp4","Assets/mosque_timelapse.mp4","Assets/like_share_btn.png"]
+          for p in BINARIES:
+              f = ROOT/p
+              if not f.exists() or f.stat().st_size == 0:
+                  f.write_bytes(b"")
+          
+          cube = ROOT/"Assets/cinematic_look.cube"
+          if not cube.exists() or cube.stat().st_size == 0:
+              cube.write_text('TITLE "Identity LUT"\nLUT_3D_SIZE 2\n0.0 0.0 0.0\n1.0 0.0 0.0\n0.0 1.0 0.0\n1.0 1.0 0.0\n0.0 0.0 1.0\n1.0 0.0 1.0\n0.0 1.0 1.0\n1.0 1.0 1.0\n', encoding="utf-8")
+          
+          readme_content = "# Assets Folder\n\n⚠️ **Placeholder Files** — Add real ones later.\n\n✅ Fonts & logo are real."
+          (ROOT/"Assets/README.md").write_text(readme_content, encoding="utf-8")
+          log("Binary placeholders + README created", "🎨")
+          
+          # ═══════════════════════════════════════════════════════════
+          # F. FIX IMPORTS
+          # ═══════════════════════════════════════════════════════════
+          FIXES = [
+              ("Story/Subtitles_Text/ass_builder.py", r"from colors import get_color_tag", "from palette import get_color_tag"),
+              ("API/Audio_Text/cta_AI.py", r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)', r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
+              ("API/Audio_Text/intro_AI.py", r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)', r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
+              ("API/Audio_Text/outro_AI.py", r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)', r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
+              ("URL/TTS_Translation/mymemory.py", r'base_dir = os\.path\.dirname\(os\.path\.dirname\(os\.path\.dirname\(os\.path\.abspath\(__file__\)\)\)\)\s*\n(\s*)ai_path = os\.path\.join\(base_dir, "Management", "2_AI_Models"\)', r'dev_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\1ai_path = os.path.join(dev_root, "API", "AI_Models")'),
+              ("Story/Thumbnails/cta_maker.py", r'font_dirs = \[\s*\n\s*os\.path\.join\(here, "\.\.", "\.\.", "Management", "assets", "fonts"\),\s*\n\s*os\.path\.join\(here, "\.\.", "\.\.", "assets", "fonts"\),\s*\n\s*os\.path\.join\(here, "\.\.", "assets", "fonts"\),\s*\n\s*\]', 'font_dirs = [os.path.join(here, "..", "..", "Assets"),]'),
+              ("Story/Final_Render/ffmpeg_render.py", r'fonts_dir = os\.path\.normpath\(os\.path\.join\(here, "\.\.", "\.\.", "Management", "assets", "fonts"\)\)', 'fonts_dir = os.path.normpath(os.path.join(here, "..", "..", "Assets"))'),
+              ("Story/Final_Render/ffmpeg_render.py", r'logo_path = os\.path\.normpath\(os\.path\.join\(here, "\.\.", "\.\.", "Management", "assets", "logo\.png"\)\)', 'logo_path = os.path.normpath(os.path.join(here, "..", "..", "Assets", "sawaj_logo.png"))'),
+          ]
+          for rel, pat, rep in FIXES:
+              f = ROOT/rel
+              if not f.exists(): continue
+              c = f.read_text(encoding="utf-8", errors="ignore")
+              nc = re.sub(pat, rep, c)
+              if nc != c:
+                  f.write_text(nc, encoding="utf-8")
+          log("Files fixed (imports/paths)", "✏️")
+          
+          comp = ROOT/"Story/Pipeline_Orchestration/composer.py"
+          if comp.exists():
+              c = comp.read_text(encoding="utf-8")
+              old = 'CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))\nBRANCH_DIR = os.path.dirname(CURRENT_DIR)\nFACTORY_DIR = os.path.dirname(BRANCH_DIR)\nMGMT = os.path.join(FACTORY_DIR, "Management")\nfor sub in ["1_Git_Tools", "2_AI_Models", "3_Media", "4_Islamic", "5_Audio_Text", "Uploader"]:\n    sys.path.insert(0, os.path.join(MGMT, sub))'
+              new = 'CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))\nDEV_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))\nfor sub in [\n    "API/AI_Models","API/Video_Sources","API/Music_Sources",\n    "API/Photo_Sources","API/Islamic_Content","API/Audio_Text",\n    "URL/Media","URL/Islamic","URL/TTS_Translation","URL/Text_Content",\n    "Story/Pipeline_Orchestration","Story/Final_Render",\n    "Story/Subtitles_Text","Story/Thumbnails",\n    "Uploader","Config/App_Configs",\n]:\n    sys.path.insert(0, os.path.join(DEV_ROOT, sub))'
+              if old in c: c = c.replace(old, new)
+              c = c.replace("from render_main import build_and_render_story", "from render_video import build_and_render_story")
+              comp.write_text(c, encoding="utf-8")
+              log("composer.py fixed", "🔧")
+          
+          rv = ROOT/"Story/Final_Render/render_video.py"
+          if rv.exists():
+              c = rv.read_text(encoding="utf-8")
+              old = 'CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))\nBRANCH_DIR = os.path.dirname(CURRENT_DIR)\nFACTORY_DIR = os.path.dirname(BRANCH_DIR)\nMGMT = os.path.join(FACTORY_DIR, "Management")\nsys.path.insert(0, CURRENT_DIR)\nASSETS_DIR = os.path.join(MGMT, "assets")\nFONTS_DIR = os.path.join(ASSETS_DIR, "fonts")\nLOGO_PATH = os.path.join(ASSETS_DIR, "logo.png")'
+              new = 'CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))\nDEV_ROOT = os.path.dirname(os.path.dirname(CURRENT_DIR))\nsys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Pipeline_Orchestration"))\nsys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Subtitles_Text"))\nsys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Thumbnails"))\nsys.path.insert(0, os.path.join(DEV_ROOT, "Story", "Final_Render"))\nASSETS_DIR = os.path.join(DEV_ROOT, "Assets")\nFONTS_DIR = ASSETS_DIR\nLOGO_PATH = os.path.join(ASSETS_DIR, "sawaj_logo.png")'
+              if old in c: c = c.replace(old, new)
+              rv.write_text(c, encoding="utf-8")
+              log("render_video.py fixed", "🔧")
+          
+          # ═══════════════════════════════════════════════════════════
+          # G. .gitignore
+          # ═══════════════════════════════════════════════════════════
+          gitignore_content = "Story/Runtime_Logs/*\n!Story/Runtime_Logs/.gitkeep\n__pycache__/\n*.pyc\n*.pyo\n*.pyd\nvenv/\nenv/\ntemp/\n*.tmp\n.DS_Store\nThumbs.db\n.vscode/\n.idea/\n*.swp\n.env\n.env.local\n"
+          (ROOT/".gitignore").write_text(gitignore_content, encoding="utf-8")
+          (ROOT/"Story/Runtime_Logs/.gitkeep").write_text("")
+          
+          print("\n✅ STRUCTURE CREATED SUCCESSFULLY!")
+          PYEOF
 
       # ═══════════════════════════════════════════════════════
       # 4. VERIFY
@@ -762,15 +322,6 @@ PYEOF
           echo ""
           echo "════════ Story ════════"
           find Story -type f | sort
-          echo ""
-          echo "════════ Config ════════"
-          find Config -type f | sort
-          echo ""
-          echo "════════ Uploader ════════"
-          find Uploader -type f | sort
-          echo ""
-          echo "════════ Assets ════════"
-          ls -la Assets/
           echo ""
           echo "════════ FILE COUNT ════════"
           find API URL Story Config Uploader Assets -type f | wc -l
@@ -792,7 +343,7 @@ PYEOF
           echo "✅ Pushed to Development"
 
       # ═══════════════════════════════════════════════════════
-      # 6. OPTIONAL: RUN PIPELINE (only if input=true)
+      # 6. OPTIONAL: RUN PIPELINE
       # ═══════════════════════════════════════════════════════
       - name: 6. 📦 Install Requirements
         if: ${{ inputs.run_pipeline == true }}
