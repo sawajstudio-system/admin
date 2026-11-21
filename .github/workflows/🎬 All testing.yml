@@ -1,0 +1,333 @@
+name: 🎬 All testing 
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: story-pipeline
+  cancel-in-progress: false
+
+jobs:
+  build_and_upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      TELEGRAM_API_REPORT_TOKEN: ${{ secrets.TELEGRAM_API_REPORT_TOKEN }}
+      TELEGRAM_API_REPORT_CHAT_ID: ${{ secrets.TELEGRAM_API_REPORT_CHAT_ID }}
+      TOKEN_GITHUB: ${{ secrets.TOKEN_GITHUB }}
+
+      GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
+      GDRIVE_CLIENT_SECRET: ${{ secrets.GDRIVE_CLIENT_SECRET }}
+      GDRIVE_REFRESH_TOKEN: ${{ secrets.GDRIVE_REFRESH_TOKEN }}
+      GDRIVE_F_STORY_ID: ${{ secrets.GDRIVE_F_STORY_ID }}
+
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+      PIXABAY_API_KEY: ${{ secrets.PIXABAY_API_KEY }}
+      FREESOUND_API_KEY: ${{ secrets.FREESOUND_API_KEY }}
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+
+    steps:
+      - name: Checkout Development Repo (for Assets)
+        uses: actions/checkout@v4
+        with:
+          repository: "sawajstudio-system/Development"
+          token: ${{ secrets.TOKEN_GITHUB }}
+
+      - name: Setup Python & FFmpeg
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg fonts-noto fonts-noto-color-emoji fontconfig
+          sudo fc-cache -f -v
+          python -m pip install --upgrade pip
+          pip install requests edge-tts google-api-python-client google-auth-httplib2 google-auth-oauthlib Pillow mutagen
+
+      - name: Run Single-File Inline Pipeline
+        run: |
+          python -u - << 'EOF'
+          import os, re, sys, time, random, subprocess, requests
+          from PIL import Image, ImageDraw, ImageFont
+          from google.oauth2.credentials import Credentials
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          os.makedirs("work_temp", exist_ok=True)
+
+          def tg(msg):
+              tok = os.getenv("TELEGRAM_API_REPORT_TOKEN")
+              cid = os.getenv("TELEGRAM_API_REPORT_CHAT_ID")
+              if tok and cid:
+                  try:
+                      requests.post(
+                          f"https://api.telegram.org/bot{tok}/sendMessage",
+                          json={"chat_id": cid, "text": msg[:4000], "parse_mode": "HTML"},
+                          timeout=10,
+                      )
+                  except Exception:
+                      pass
+
+          def clean(t):
+              t = re.sub(r"[\u200b-\u200f\ufeff\u202a-\u202e]", "", str(t or ""))
+              return re.sub(r"\s+", " ", t.replace("\n", " ").replace("\r", " ")).strip()
+
+          def fetch_hadith():
+              books = [
+                  ("eng-bukhari", "ara-bukhari", "Sahih al-Bukhari", 7563),
+                  ("eng-muslim", "ara-muslim", "Sahih Muslim", 7450),
+                  ("eng-tirmidhi", "ara-tirmidhi", "Jami at-Tirmidhi", 3956),
+              ]
+              bases = [
+                  "https://cdn.jsdelivr.net/gh/fawazahmed0/hadith-api@1",
+                  "https://raw.githubusercontent.com/fawazahmed0/hadith-api/1",
+              ]
+              for _ in range(6):
+                  eng_b, ara_b, name, max_n = random.choice(books)
+                  num = random.randint(1, max_n)
+                  for b in bases:
+                      try:
+                          r1 = requests.get(f"{b}/editions/{eng_b}/{num}.json", timeout=15)
+                          if r1.status_code != 200:
+                              continue
+                          h1 = r1.json().get("hadiths", [])
+                          if not h1:
+                              continue
+                          eng = clean(h1[0].get("text", ""))
+                          if len(eng) < 25:
+                              continue
+                          r2 = requests.get(f"{b}/editions/{ara_b}/{num}.json", timeout=10)
+                          ara = clean(r2.json().get("hadiths", [{}])[0].get("text", "")) if r2.status_code == 200 else ""
+                          if ara:
+                              return {"collection": name, "number": str(num), "english": eng, "arabic": ara}
+                      except Exception:
+                          continue
+              return {
+                  "collection": "Sahih al-Bukhari",
+                  "number": "1",
+                  "english": "The reward of deeds depends upon the intentions and every person will get the reward according to what he has intended.",
+                  "arabic": "إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ",
+              }
+
+          def generate_hindi_script(eng_text):
+              prompt = f"Translate to Hindi and add a short moral lesson. Total 65-80 words. Only Hindi text.\n\nHadith: {eng_text}"
+              gem_key = os.getenv("GEMINI_API_KEY")
+              if gem_key:
+                  try:
+                      r = requests.post(
+                          f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gem_key}",
+                          json={"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"maxOutputTokens": 250, "temperature": 0.8}},
+                          timeout=30,
+                      )
+                      if r.status_code == 200:
+                          out = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                          if any("\u0900" <= ch <= "\u097F" for ch in out):
+                              return out, "Gemini"
+                  except Exception:
+                      pass
+
+              groq_key = os.getenv("GROQ_API_KEY")
+              if groq_key:
+                  try:
+                      r = requests.post(
+                          "https://api.groq.com/openai/v1/chat/completions",
+                          headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                          json={"model": "llama-3.3-70b-versatile", "messages": [{"role": "user", "content": prompt}], "max_tokens": 250},
+                          timeout=30,
+                      )
+                      if r.status_code == 200:
+                          out = r.json()["choices"][0]["message"]["content"].strip()
+                          if any("\u0900" <= ch <= "\u097F" for ch in out):
+                              return out, "Groq"
+                  except Exception:
+                      pass
+
+              try:
+                  r = requests.get("https://api.mymemory.translated.net/get", params={"q": eng_text[:450], "langpair": "en|hi"}, timeout=15)
+                  if r.status_code == 200:
+                      tr = r.json().get("responseData", {}).get("translatedText", "").strip()
+                      if tr and "MYMEMORY WARNING" not in tr.upper():
+                          return tr, "MyMemory"
+              except Exception:
+                  pass
+              return "", "None"
+
+          def generate_voice(text, out_mp3):
+              el_key = os.getenv("ELEVENLABS_API_KEY")
+              if el_key:
+                  try:
+                      r = requests.post(
+                          "https://api.elevenlabs.io/v1/text-to-speech/pNInz6obpgDQGcFmaJgB",
+                          headers={"Accept": "audio/mpeg", "Content-Type": "application/json", "xi-api-key": el_key},
+                          json={"text": text, "model_id": "eleven_multilingual_v2"},
+                          timeout=60,
+                      )
+                      if r.status_code == 200 and len(r.content) > 1000:
+                          with open(out_mp3, "wb") as f:
+                              f.write(r.content)
+                          return "ElevenLabs"
+                  except Exception:
+                      pass
+
+              words = text.split()
+              chunks, cur = [], ""
+              for w in words:
+                  if len(cur) + len(w) + 1 > 150:
+                      chunks.append(cur)
+                      cur = w
+                  else:
+                      cur = f"{cur} {w}".strip()
+              if cur:
+                  chunks.append(cur)
+
+              audio = b""
+              for c in chunks:
+                  r = requests.get(
+                      "https://translate.google.com/translate_tts",
+                      params={"ie": "UTF-8", "q": c, "tl": "hi", "client": "tw-ob"},
+                      headers={"User-Agent": "Mozilla/5.0"},
+                      timeout=15,
+                  )
+                  if r.status_code == 200:
+                      audio += r.content
+              if len(audio) > 1000:
+                  with open(out_mp3, "wb") as f:
+                      f.write(audio)
+                  return "Google-TTS"
+              return None
+
+          def fetch_bg_video(out_mp4):
+              px_key = os.getenv("PEXELS_API_KEY")
+              queries = ["islamic mosque night", "stars night sky", "ocean waves sunset", "desert sand dunes"]
+              if px_key:
+                  for q in queries:
+                      try:
+                          r = requests.get(
+                              f"https://api.pexels.com/videos/search?query={q}&orientation=portrait&per_page=3",
+                              headers={"Authorization": px_key},
+                              timeout=15,
+                          )
+                          vids = r.json().get("videos", []) if r.status_code == 200 else []
+                          for v in vids:
+                              files = v.get("video_files", [])
+                              if files:
+                                  link = files[0].get("link")
+                                  data = requests.get(link, timeout=30).content
+                                  if len(data) > 50000:
+                                      raw = "work_temp/raw_bg.mp4"
+                                      with open(raw, "wb") as f:
+                                          f.write(data)
+                                      subprocess.run(
+                                          f'ffmpeg -y -i "{raw}" -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=24,setsar=1" -an -c:v libx264 -preset ultrafast -crf 28 "{out_mp4}"',
+                                          shell=True, check=True, capture_output=True, timeout=180
+                                      )
+                                      return "Pexels"
+                      except Exception:
+                          continue
+              subprocess.run(
+                  f'ffmpeg -y -f lavfi -i "gradients=s=1080x1920:c0=0x12182b:c1=0x2a1b3d:speed=0.005" -t 30 -c:v libx264 -preset ultrafast -crf 26 "{out_mp4}"',
+                  shell=True, check=True, capture_output=True
+              )
+              return "Gradient"
+
+          def make_cta(out_png):
+              img = Image.new("RGBA", (1080, 1920), (0, 0, 0, 0))
+              draw = ImageDraw.Draw(img)
+              font = ImageFont.load_default()
+              draw.rounded_rectangle([240, 1300, 840, 1680], radius=25, fill=(15, 15, 15, 170), outline=(255, 215, 0, 220), width=3)
+              draw.text((540, 1420), "LIKE • SHARE • FOLLOW", font=font, fill="#FFD700", anchor="mm")
+              draw.text((540, 1540), "Sawaj Studio", font=font, fill="#00FFFF", anchor="mm")
+              img.save(out_png, "PNG")
+
+          def upload_drive(path):
+              cid = os.getenv("GDRIVE_CLIENT_ID")
+              csec = os.getenv("GDRIVE_CLIENT_SECRET")
+              rtok = os.getenv("GDRIVE_REFRESH_TOKEN")
+              fid = os.getenv("GDRIVE_F_STORY_ID")
+              if not all([cid, csec, rtok]):
+                  return None
+              creds = Credentials(None, refresh_token=rtok, client_id=cid, client_secret=csec, token_uri="https://oauth2.googleapis.com/token")
+              svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+              meta = {"name": f"Story_{int(time.time())}.mp4"}
+              if fid:
+                  meta["parents"] = [fid]
+              media = MediaFileUpload(path, mimetype="video/mp4", resumable=True)
+              created = svc.files().create(body=meta, media_body=media, fields="id, webViewLink").execute()
+              try:
+                  svc.permissions().create(fileId=created["id"], body={"type": "anyone", "role": "reader"}).execute()
+              except Exception:
+                  pass
+              return created.get("webViewLink")
+
+          tg("🚀 <b>Single-YML Pipeline Started</b>")
+          h = fetch_hadith()
+          hi_text, ai_src = generate_hindi_script(h["english"])
+          if not hi_text:
+              tg("❌ Hindi generation failed")
+              sys.exit(1)
+
+          voice_mp3 = "work_temp/voice.mp3"
+          v_src = generate_voice(f"हदीस शरीफ। {hi_text}", voice_mp3)
+          if not v_src:
+              tg("❌ Voice generation failed")
+              sys.exit(1)
+
+          dur_raw = subprocess.check_output(
+              f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{voice_mp3}"',
+              shell=True, text=True
+          ).strip()
+          dur = float(dur_raw) if dur_raw else 20.0
+
+          bg_mp4 = "work_temp/bg.mp4"
+          vid_src = fetch_bg_video(bg_mp4)
+
+          cta_png = "work_temp/cta.png"
+          make_cta(cta_png)
+
+          safe_hi = hi_text.replace("'", "").replace(":", " ").replace("\n", " ")[:240]
+          ass_path = "work_temp/subs.ass"
+          with open(ass_path, "w", encoding="utf-8") as f:
+              f.write(
+                  "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n"
+                  "[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+                  "Style: Main,Noto Sans Devanagari,56,&H00FFFFFF&,&H000000FF&,&H00000000&,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,2,50,50,500,1\n\n"
+                  "[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+                  f"Dialogue: 0,0:00:01.00,0:02:00.00,Main,,0,0,0,,{safe_hi}\n"
+              )
+
+          final_mp4 = "work_temp/Final_Story.mp4"
+          cta_start = max(0.0, dur - 5.0)
+          cmd = [
+              "ffmpeg", "-y", "-stream_loop", "-1", "-i", bg_mp4,
+              "-i", voice_mp3, "-loop", "1", "-i", cta_png,
+              "-filter_complex",
+              f"[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,vignette=PI/4[bg];"
+              f"[bg]subtitles='{os.path.abspath(ass_path)}'[sub];"
+              f"[sub][2:v]overlay=0:0:enable='gte(t,{cta_start:.2f})'[vout]",
+              "-map", "[vout]", "-map", "1:a",
+              "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-r", "24",
+              "-c:a", "aac", "-b:a", "128k", "-t", f"{dur:.2f}", "-shortest", final_mp4
+          ]
+          subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+
+          link = upload_drive(final_mp4)
+          report = (
+              f"✅ <b>Done!</b>\n"
+              f"📜 Hadith: {h['collection']} #{h['number']}\n"
+              f"🧠 Script: {ai_src} | 🎙️ Voice: {v_src} | 🎥 Video: {vid_src}\n"
+              f"☁️ Drive: {link or 'Not uploaded / Failed'}"
+          )
+          tg(report)
+          print(report)
+          EOF
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf work_temp 2>/dev/null || true
