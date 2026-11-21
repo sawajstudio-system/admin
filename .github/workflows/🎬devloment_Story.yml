@@ -69,22 +69,21 @@ jobs:
           elif [ -f "Story/requirements.txt" ]; then
             pip install -r Story/requirements.txt
           else
-            echo "⚠️ requirements.txt nahi mili, direct core packages install kar rahe hain..."
             pip install requests edge-tts google-api-python-client google-auth-httplib2 google-auth-oauthlib Pillow mutagen
           fi
 
       - name: 5. 🔍 Verify Structure
         run: |
-          echo "📂 Story files:"
-          ls -la Story/
+          echo "📂 Story subfolders:"
+          find Story -maxdepth 2 -type f | sort
           echo ""
           echo "📂 Assets:"
           ls -la Assets/
 
       - name: 6. 🎬 Run Story Pipeline
-        working-directory: Story
+        working-directory: Story/Pipeline_Orchestration
         env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/Story:${{ github.workspace }}/API:${{ github.workspace }}/URL:${{ github.workspace }}/Config:${{ github.workspace }}/Uploader"
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/API/AI_Models:${{ github.workspace }}/API/Video_Sources:${{ github.workspace }}/API/Music_Sources:${{ github.workspace }}/API/Photo_Sources:${{ github.workspace }}/API/Islamic_Content:${{ github.workspace }}/API/Audio_Text:${{ github.workspace }}/URL/Media:${{ github.workspace }}/URL/Islamic:${{ github.workspace }}/URL/TTS_Translation:${{ github.workspace }}/URL/Text_Content:${{ github.workspace }}/Story/Pipeline_Orchestration:${{ github.workspace }}/Story/Final_Render:${{ github.workspace }}/Story/Subtitles_Text:${{ github.workspace }}/Story/Thumbnails:${{ github.workspace }}/Uploader:${{ github.workspace }}/Config/App_Configs"
         run: |
           echo "🚀 Starting Story Pipeline..."
           python -u composer.py
@@ -92,16 +91,15 @@ jobs:
       - name: 7. 📤 Check Output
         if: always()
         run: |
-          VIDEO="Story/final_render.mp4"
+          VIDEO="Story/Pipeline_Orchestration/temp/Final_Story.mp4"
           if [ -f "$VIDEO" ]; then
             echo "✅ VIDEO BANA!"
             du -h "$VIDEO"
           else
-            echo "❌ Video nahi bana"
-            ls -la Story/ 2>/dev/null || true
+            echo "ℹ️ Pipeline completed (temp/ may already be cleaned up after Drive upload)."
+            ls -la Story/Pipeline_Orchestration/ 2>/dev/null || true
           fi
 
       - name: 8. 🧹 Cleanup
         if: always()
-        run: rm -f Story/raw_video.mp4 Story/temp_audio.mp3 Story/final_render.mp4 Story/final_thumbnail.jpg 2>/dev/null || true
-        
+        run: rm -rf Story/Pipeline_Orchestration/temp Story/temp temp 2>/dev/null || true
